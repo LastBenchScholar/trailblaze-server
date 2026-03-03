@@ -12,7 +12,7 @@ const initRoutes = (app) => {
   app.use("/api/roadmaps", roadmapRoutes);
 
   app.get("/api", (req, res) =>
-    res.json({ message: "FocusPilot API v1.0", status: "operational" }),
+    res.json({ message: "TrailBlaze API v1.0", status: "operational" }),
   );
 
   app.get("/api/health", (req, res) => {

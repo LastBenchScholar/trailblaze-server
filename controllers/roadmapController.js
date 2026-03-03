@@ -20,6 +20,12 @@ exports.getRoadmaps = async (req, res) => {
   res.json(roadmaps);
 };
 
+exports.getRoadmap = async (req, res) => {
+  const { id } = req.params;
+  const roadmap = await Roadmap.findOne({ userId: req.user._id, _id: id });
+  res.json(roadmap);
+};
+
 exports.createRoadmap = async (req, res) => {
   const roadmap = await Roadmap.create({
     ...req.body,

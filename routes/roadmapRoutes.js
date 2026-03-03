@@ -4,6 +4,7 @@ const controller = require("../controllers/roadmapController");
 const { protect } = require("../middlewares/authMiddleware");
 
 router.get("/", protect, controller.getRoadmaps);
+router.get("/:id", protect, controller.getRoadmap);
 router.post("/", protect, controller.createRoadmap);
 router.patch(
   "/:roadmapId/checkpoints/:checkpointId/milestones/:milestoneId/complete",

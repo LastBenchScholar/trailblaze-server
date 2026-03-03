@@ -25,7 +25,8 @@ const initMiddleware = (app) => {
   // CORS Configuration
   app.use(
     cors({
-      origin: [...process.env.ALLOWED_ORIGINS.split(",")],
+      origin:
+        process.env.NODE_ENV === "production" ? [...process.env.ALLOWED_ORIGINS.split(",")] : "*",
       credentials: true,
     }),
   );
