@@ -1,0 +1,12 @@
+version: "3.9"
+
+services:
+  trailblaze_server:
+    build: .
+    container_name: trailblaze_server_c
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./:/app
+      - /app/node_modules
