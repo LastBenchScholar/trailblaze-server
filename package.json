@@ -1,0 +1,42 @@
+{
+  "name": "trailblaze-server",
+  "description": "The backend server for the Trailblaze project that provides APIs for user authentication, roadmap management, and progress tracking.",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "start": "npm run win-dev",
+    "dev": "NODE_ENV=development DEBUG=trailblaze:* nodemon server.js",
+    "prod": "NODE_ENV=production DEBUG=trailblaze:* node server.js",
+    "win-dev": "SET \"NODE_ENV=development\" & SET DEBUG=trailblaze:* & nodemon server.js",
+    "win-prod": "SET \"NODE_ENV=production\" & SET DEBUG=trailblaze:* & node server.js"
+  },
+  "engines": {
+    "node": "22.12.0"
+  },
+  "keywords": [
+    "server",
+    "nodejs",
+    "express",
+    "roadmap",
+    "trailblaze"
+  ],
+  "author": "Aditya Raul",
+  "license": "ISC",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "body-parser": "^2.2.2",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "debug": "^4.4.3",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.2.3",
+    "morgan": "^1.10.1",
+    "nodemailer": "^8.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
