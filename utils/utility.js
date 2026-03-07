@@ -36,9 +36,9 @@ module.exports.sendEmail = (email, subject, message) => {
  * Custom error class to represent HTTP errors with a status code.
  * Extends the built-in Error class to include an HTTP status code.
  */
-class HttpError extends Error {
+class AppError extends Error {
   /**
-   * Create an HttpError instance.
+   * Create an AppError instance.
    *
    * @param {string} message - The error message.
    * @param {number} [statusCode=500] - The HTTP status code.
@@ -50,4 +50,4 @@ class HttpError extends Error {
     Error.captureStackTrace(this, this.constructor);
   }
 }
-module.exports.HttpError = HttpError;
+module.exports.AppError = AppError;
