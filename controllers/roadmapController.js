@@ -1,100 +1,21 @@
-const mongoose = require("mongoose");
 const Roadmap = require("../models/Roadmap");
 const { AppError } = require("../utils/utility");
-
-const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
-
-const calculateProgress = (roadmap) => {
-  let total = 0;
-  let completed = 0;
-
-  roadmap.checkpoints.forEach((checkpoint) => {
-    checkpoint.milestones.forEach((milestone) => {
-      total += 1;
-      if (milestone.isCompleted) completed += 1;
-    });
-  });
-
-  if (total === 0) return 0;
-  return Number(((completed / total) * 100).toFixed(1));
-};
-
-const roadmapResponse = (roadmap) => {
-  const value = roadmap.toObject();
-  value.progress = calculateProgress(roadmap);
-  return value;
-};
-
-const recalculateCompletion = (roadmap) => {
-  roadmap.checkpoints.forEach((checkpoint) => {
-    checkpoint.isCompleted =
-      checkpoint.milestones.length > 0 &&
-      checkpoint.milestones.every((milestone) => milestone.isCompleted);
-  });
-
-  roadmap.isCompleted =
-    roadmap.checkpoints.length > 0 &&
-    roadmap.checkpoints.every((checkpoint) => checkpoint.isCompleted);
-};
-
-const sanitizeRoadmapPayload = (body = {}, { partial = false } = {}) => {
-  const allowedFields = ["title", "description", "category", "deadline", "checkpoints"];
-  const payload = {};
-
-  allowedFields.forEach((field) => {
-    if (Object.prototype.hasOwnProperty.call(body, field)) {
-      payload[field] = body[field];
-    }
-  });
-
-  if (!partial && !payload.title) return { error: "Title is required" };
-
-  if (Object.prototype.hasOwnProperty.call(payload, "deadline") && payload.deadline) {
-    const date = new Date(payload.deadline);
-    if (Number.isNaN(date.getTime())) return { error: "Invalid deadline date" };
-    payload.deadline = date;
-  }
-
-  return { payload };
-};
-
-const sanitizeCheckpointPayload = (body = {}, { partial = false } = {}) => {
-  const payload = {};
-  if (Object.prototype.hasOwnProperty.call(body, "title")) payload.title = body.title;
-  if (Object.prototype.hasOwnProperty.call(body, "order")) payload.order = body.order;
-  if (Object.prototype.hasOwnProperty.call(body, "milestones"))
-    payload.milestones = body.milestones;
-
-  if (!partial && !payload.title) return { error: "Checkpoint title is required" };
-  if (Object.prototype.hasOwnProperty.call(payload, "title") && !payload.title) {
-    return { error: "Checkpoint title cannot be empty" };
-  }
-
-  return { payload };
-};
-
-const sanitizeMilestonePayload = (body = {}, { partial = false } = {}) => {
-  const payload = {};
-  if (Object.prototype.hasOwnProperty.call(body, "title")) payload.title = body.title;
-  if (Object.prototype.hasOwnProperty.call(body, "order")) payload.order = body.order;
-  if (Object.prototype.hasOwnProperty.call(body, "isCompleted"))
-    payload.isCompleted = body.isCompleted;
-
-  if (!partial && !payload.title) return { error: "Milestone title is required" };
-  if (Object.prototype.hasOwnProperty.call(payload, "title") && !payload.title) {
-    return { error: "Milestone title cannot be empty" };
-  }
-
-  return { payload };
-};
+const {
+  isValidObjectId,
+  roadmapResponse,
+  recalculateCompletion,
+  sanitizeRoadmapPayload,
+  sanitizeCheckpointPayload,
+  sanitizeMilestonePayload,
+} = require("../utils/roadmapHelper");
 
 /**
- * List user roadmaps with pagination.
+ * List user roadmaps with optional query filters for completion status and category.
  * @route /api/roadmaps
- * @query page, limit, isCompleted, category
+ * @query isCompleted, category
  * @method GET
  */
-exports.getRoadmaps = async (req, res) => {
+module.exports.getRoadmaps = async (req, res) => {
   try {
     const query = { userId: req.user._id };
 
@@ -122,7 +43,7 @@ exports.getRoadmaps = async (req, res) => {
  * @method GET
  * @param id - Roadmap ID
  */
-exports.getRoadmap = async (req, res) => {
+module.exports.getRoadmap = async (req, res) => {
   try {
     const { id } = req.params;
     if (!isValidObjectId(id)) throw new AppError("Invalid roadmap id", 400);
@@ -146,10 +67,25 @@ exports.getRoadmap = async (req, res) => {
  * @body title, description, category, deadline
  * @method POST
  */
-exports.createRoadmap = async (req, res) => {
+module.exports.createRoadmap = async (req, res) => {
   try {
-    const { payload, error } = sanitizeRoadmapPayload(req.body);
-    if (error) return res.status(400).json({ message: error });
+    const body = req.body || {};
+    const allowedFields = ["title", "description", "category", "deadline", "checkpoints"];
+    const payload = {};
+
+    allowedFields.forEach((field) => {
+      if (Object.prototype.hasOwnProperty.call(body, field)) {
+        payload[field] = body[field];
+      }
+    });
+
+    if (!payload.title) throw new AppError("Title is required", 400);
+
+    if (Object.prototype.hasOwnProperty.call(payload, "deadline") && payload.deadline) {
+      const date = new Date(payload.deadline);
+      if (Number.isNaN(date.getTime())) throw new AppError("Invalid deadline date", 400);
+      payload.deadline = date;
+    }
 
     const roadmap = await Roadmap.create({
       ...payload,
@@ -159,9 +95,16 @@ exports.createRoadmap = async (req, res) => {
     recalculateCompletion(roadmap);
     await roadmap.save();
 
-    res.status(201).json(roadmapResponse(roadmap));
-  } catch (errorResponse) {
-    res.status(500).json({ message: errorResponse.message });
+    res.status(201).json({
+      status: "success",
+      data: roadmapResponse(roadmap),
+      message: "Roadmap created successfully",
+    });
+  } catch (error) {
+    console.log(error);
+    res
+      .status(error.statusCode || 500)
+      .json({ status: "error", message: error.message || "Server Error" });
   }
 };
 
@@ -169,7 +112,7 @@ exports.createRoadmap = async (req, res) => {
  * Update roadmap metadata and nested checkpoints.
  * @route PATCH /api/roadmaps/:id
  */
-exports.updateRoadmap = async (req, res) => {
+module.exports.updateRoadmap = async (req, res) => {
   try {
     const { id } = req.params;
     if (!isValidObjectId(id)) return res.status(400).json({ message: "Invalid roadmap id" });
@@ -194,7 +137,7 @@ exports.updateRoadmap = async (req, res) => {
  * Delete roadmap by id.
  * @route DELETE /api/roadmaps/:id
  */
-exports.deleteRoadmap = async (req, res) => {
+module.exports.deleteRoadmap = async (req, res) => {
   try {
     const { id } = req.params;
     if (!isValidObjectId(id)) return res.status(400).json({ message: "Invalid roadmap id" });
@@ -212,7 +155,7 @@ exports.deleteRoadmap = async (req, res) => {
  * Add a checkpoint to a roadmap.
  * @route POST /api/roadmaps/:roadmapId/checkpoints
  */
-exports.addCheckpoint = async (req, res) => {
+module.exports.addCheckpoint = async (req, res) => {
   try {
     const { roadmapId } = req.params;
     if (!isValidObjectId(roadmapId)) return res.status(400).json({ message: "Invalid roadmap id" });
@@ -238,7 +181,7 @@ exports.addCheckpoint = async (req, res) => {
  * Update a checkpoint.
  * @route PATCH /api/roadmaps/:roadmapId/checkpoints/:checkpointId
  */
-exports.updateCheckpoint = async (req, res) => {
+module.exports.updateCheckpoint = async (req, res) => {
   try {
     const { roadmapId, checkpointId } = req.params;
     if (!isValidObjectId(roadmapId) || !isValidObjectId(checkpointId)) {
@@ -268,7 +211,7 @@ exports.updateCheckpoint = async (req, res) => {
  * Remove a checkpoint.
  * @route DELETE /api/roadmaps/:roadmapId/checkpoints/:checkpointId
  */
-exports.deleteCheckpoint = async (req, res) => {
+module.exports.deleteCheckpoint = async (req, res) => {
   try {
     const { roadmapId, checkpointId } = req.params;
     if (!isValidObjectId(roadmapId) || !isValidObjectId(checkpointId)) {
@@ -295,7 +238,7 @@ exports.deleteCheckpoint = async (req, res) => {
  * Add a milestone to a checkpoint.
  * @route POST /api/roadmaps/:roadmapId/checkpoints/:checkpointId/milestones
  */
-exports.addMilestone = async (req, res) => {
+module.exports.addMilestone = async (req, res) => {
   try {
     const { roadmapId, checkpointId } = req.params;
     if (!isValidObjectId(roadmapId) || !isValidObjectId(checkpointId)) {
@@ -326,7 +269,7 @@ exports.addMilestone = async (req, res) => {
  * Update a milestone in a checkpoint.
  * @route PATCH /api/roadmaps/:roadmapId/checkpoints/:checkpointId/milestones/:milestoneId
  */
-exports.updateMilestone = async (req, res) => {
+module.exports.updateMilestone = async (req, res) => {
   try {
     const { roadmapId, checkpointId, milestoneId } = req.params;
     if (
@@ -368,7 +311,7 @@ exports.updateMilestone = async (req, res) => {
  * Remove a milestone.
  * @route DELETE /api/roadmaps/:roadmapId/checkpoints/:checkpointId/milestones/:milestoneId
  */
-exports.deleteMilestone = async (req, res) => {
+module.exports.deleteMilestone = async (req, res) => {
   try {
     const { roadmapId, checkpointId, milestoneId } = req.params;
     if (
@@ -402,7 +345,7 @@ exports.deleteMilestone = async (req, res) => {
  * Mark a milestone as complete.
  * @route PATCH /api/roadmaps/:roadmapId/checkpoints/:checkpointId/milestones/:milestoneId/complete
  */
-exports.completeMilestone = async (req, res) => {
+module.exports.completeMilestone = async (req, res) => {
   try {
     const { roadmapId, checkpointId, milestoneId } = req.params;
     if (
