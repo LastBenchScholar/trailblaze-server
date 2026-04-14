@@ -110,26 +110,35 @@ module.exports.createRoadmap = async (req, res) => {
 
 /**
  * Update roadmap metadata and nested checkpoints.
- * @route PATCH /api/roadmaps/:id
+ * @route /api/roadmaps/:id
+ * @param id
+ * @method PATCH
  */
 module.exports.updateRoadmap = async (req, res) => {
   try {
     const { id } = req.params;
-    if (!isValidObjectId(id)) return res.status(400).json({ message: "Invalid roadmap id" });
+    if (!isValidObjectId(id)) throw new AppError("Invalid roadmap id", 400);
 
     const { payload, error } = sanitizeRoadmapPayload(req.body, { partial: true });
-    if (error) return res.status(400).json({ message: error });
+    if (error) throw new AppError(error, 400);
 
     const roadmap = await Roadmap.findOne({ _id: id, userId: req.user._id });
-    if (!roadmap) return res.status(404).json({ message: "Roadmap not found" });
+    if (!roadmap) throw new AppError("Roadmap not found", 404);
 
-    Object.assign(roadmap, payload);
+    roadmap.set(payload);
     recalculateCompletion(roadmap);
     await roadmap.save();
 
-    res.json(roadmapResponse(roadmap));
-  } catch (errorResponse) {
-    res.status(500).json({ message: errorResponse.message });
+    res.status(200).json({
+      status: "success",
+      message: "Roadmap updated successfully",
+      data: roadmapResponse(roadmap),
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      status: "error",
+      message: error.message || "Server Error",
+    });
   }
 };
 
