@@ -10,29 +10,53 @@ const { AppError } = require("../utils/utility");
  */
 const protect = async (req, res, next) => {
   try {
-    let token;
-
-    if (req.headers.authorization?.startsWith("Bearer")) {
-      token = req.headers.authorization.split(" ")[1];
-
-      const decoded = jwt.verify(token, process.env.SECRET_KEY, (err, result) => {
-        if (err && err.name === "TokenExpiredError") return "Token expired";
-        return result;
-      });
-
-      if (decoded === "Token expired") throw new AppError("Auth token expired", 401);
-
-      const user = await User.findById(decoded.userId).select("-password");
-
-      if (!user) throw new AppError("User not found", 401);
-
-      req.user = user;
-      next();
-    }
-
-    if (!token) {
+    // Check if Authorization header exists
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
       throw new AppError("No token provided", 401);
     }
+
+    // Validate Bearer format
+    if (!authHeader.startsWith("Bearer ")) {
+      throw new AppError("Invalid token format", 401);
+    }
+
+    // Extract token from Bearer format
+    const token = authHeader.split(" ")[1];
+    if (!token) {
+      throw new AppError("Invalid token format", 401);
+    }
+
+    // Verify and decode JWT token
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.SECRET_KEY);
+    } catch (jwtError) {
+      if (jwtError.name === "TokenExpiredError") {
+        throw new AppError("Token expired", 401);
+      } else if (jwtError.name === "JsonWebTokenError") {
+        throw new AppError("Invalid token", 401);
+      } else {
+        throw new AppError("Token verification failed", 401);
+      }
+    }
+
+    // Validate decoded token structure
+    if (!decoded || typeof decoded !== "object" || !decoded.userId) {
+      throw new AppError("Invalid token structure", 401);
+    }
+
+    // Fetch user from database
+    const user = await User.findById(decoded.userId).select("-password");
+
+    // Validate user exists
+    if (!user) {
+      throw new AppError("User not found", 401);
+    }
+
+    // Attach user to request and proceed
+    req.user = user;
+    next();
   } catch (error) {
     console.log(error);
     return res
