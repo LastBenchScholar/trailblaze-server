@@ -74,10 +74,46 @@ module.exports.sanitizeRoadmapPayload = (body = {}, { partial = false } = {}) =>
 
   if (!partial && !payload.title) return { error: "Title is required" };
 
+  if (Object.prototype.hasOwnProperty.call(payload, "title") && !payload.title) {
+    return { error: "Title cannot be empty" };
+  }
+
   if (Object.prototype.hasOwnProperty.call(payload, "deadline") && payload.deadline) {
     const date = new Date(payload.deadline);
     if (Number.isNaN(date.getTime())) return { error: "Invalid deadline date" };
     payload.deadline = date;
+  }
+
+  // Validate checkpoints array if provided
+  if (Object.prototype.hasOwnProperty.call(payload, "checkpoints")) {
+    if (!Array.isArray(payload.checkpoints)) {
+      return { error: "Checkpoints must be an array" };
+    }
+
+    for (let i = 0; i < payload.checkpoints.length; i++) {
+      const checkpoint = payload.checkpoints[i];
+      if (!checkpoint || typeof checkpoint !== "object") {
+        return { error: `Checkpoint at index ${i} must be an object` };
+      }
+      if (!checkpoint.title || typeof checkpoint.title !== "string" || !checkpoint.title.trim()) {
+        return { error: `Checkpoint at index ${i} must have a valid title` };
+      }
+      // Validate milestones if provided
+      if (Object.prototype.hasOwnProperty.call(checkpoint, "milestones")) {
+        if (!Array.isArray(checkpoint.milestones)) {
+          return { error: `Milestones for checkpoint at index ${i} must be an array` };
+        }
+        for (let j = 0; j < checkpoint.milestones.length; j++) {
+          const milestone = checkpoint.milestones[j];
+          if (!milestone || typeof milestone !== "object") {
+            return { error: `Milestone at index ${j} in checkpoint ${i} must be an object` };
+          }
+          if (!milestone.title || typeof milestone.title !== "string" || !milestone.title.trim()) {
+            return { error: `Milestone at index ${j} in checkpoint ${i} must have a valid title` };
+          }
+        }
+      }
+    }
   }
 
   return { payload };
